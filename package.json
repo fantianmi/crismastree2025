@@ -2,12 +2,13 @@
   "name": "christmas-tree-interactive",
   "version": "1.0.0",
   "description": "Interactive Christmas Tree with Three.js and MediaPipe hand gestures",
-  "main": "圣诞树.html",
+  "main": "server.js",
   "scripts": {
-    "start": "npx http-server -p 8080 -o",
+    "start": "node server.js",
     "dev": "npx serve -p 3000",
-    "open": "open 圣诞树.html",
-    "server": "node server.js"
+    "local": "npx http-server -p 8080 -o",
+    "open": "open index.html",
+    "test": "node server.js"
   },
   "keywords": [
     "three.js",
@@ -18,6 +19,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
   "devDependencies": {
     "http-server": "^14.1.1",
     "serve": "^14.2.5"
