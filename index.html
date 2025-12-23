@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Christmas Tree - Creative Tech Demo</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Times+New+Roman&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --gold: #d4af37;
+            --cream: #fceea7;
+            --black: #000000;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--black);
+            font-family: 'Times New Roman', serif;
+            user-select: none;
+        }
+
+        /* UI Overlay */
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        .ui-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 56px;
+            text-align: center;
+            margin-top: 40px;
+            background: linear-gradient(to bottom, #ffffff, var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.5));
+            letter-spacing: 2px;
+        }
+
+        /* Upload Controls */
+        .upload-wrapper {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 12px 30px;
+            font-family: 'Cinzel', serif;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .glass-btn:hover {
+            background: rgba(212, 175, 55, 0.2);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+        }
+
+        .hint-text {
+            color: var(--cream);
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--black);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 1s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(212, 175, 55, 0.3);
+            border-top: 3px solid var(--gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loader-text {
+            color: var(--gold);
+            font-family: 'Cinzel', serif;
+            letter-spacing: 3px;
+            font-size: 14px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Hidden CV Elements */
+        #cv-container {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            opacity: 0; /* Hidden as requested */
+            pointer-events: none;
+        }
+    </style>
+
+    <!-- Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-text">LOADING HOLIDAY MAGIC</div>
+    </div>
+
+    <!-- UI Layer -->
+    <div id="ui-container">
+        <h1>Merry Christmas</h1>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <div class="hint-text">9 memories loaded from images/ folder</div>
+            <div class="hint-text">Press 'H' to Hide Controls</div>
+
+            <!-- Gesture Status Display -->
+            <div id="gesture-status" style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 10px; border: 1px solid var(--gold); max-width: 300px; margin-left: auto; margin-right: auto;">
+                <div style="color: var(--gold); font-family: 'Cinzel', serif; font-size: 14px; letter-spacing: 1px; margin-bottom: 5px;">
+                    GESTURE CONTROL
+                </div>
+                <div id="current-gesture" style="color: var(--cream); font-size: 13px;">
+                    No gesture detected
+                </div>
+                <div id="gesture-effect" style="color: var(--cream); font-size: 12px; opacity: 0.8; margin-top: 3px;">
+                    -
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CV Container (Hidden) -->
+    <div id="cv-container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="cv-canvas" width="160" height="120"></canvas>
+    </div>
+
+    <!-- Main Application Script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        // --- Global State ---
+        const STATE = {
+            mode: 'TREE', // TREE, SCATTER, FOCUS
+            focusTarget: null,
+            handRotation: { x: 0, y: 0 },
+
+            // New gesture states
+            gesture: 'NONE', // Current detected gesture: NONE, VICTORY, OK, THUMBS_UP
+            gestureData: {}, // Additional gesture data
+            lastGestureTime: 0, // Timestamp for gesture debouncing
+
+            // Effect states
+            lightColorIndex: 0, // Index for light color cycling
+            musicPlaying: true, // Background music state
+            particleType: 'default', // Particle effect type
+            effectEnabled: true // Whether special effects are enabled
+        };
+
+        // --- Utils ---
+        const createCandyCaneTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 64, 64);
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            for(let i = -64; i < 128; i+=20) {
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + 64, 64);
+            }
+            ctx.stroke();
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        const createDefaultPhotoTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fceea7';
+            ctx.fillRect(0,0,512,512);
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 60px Times New Roman';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('JOYEUX', 256, 200);
+            ctx.fillText('NOEL', 256, 312);
+            const t = new THREE.CanvasTexture(canvas);
+            t.colorSpace = THREE.SRGBColorSpace;
+            return t;
+        };
+
+        // --- Gesture Detection Helpers ---
+        // Helper to check if a finger is extended (tip above PIP joint)
+        const isFingerExtended = (tip, pip) => {
+            // In MediaPipe coordinates, y increases downward
+            // So tip.y < pip.y means finger is extended upward
+            return tip.y < pip.y;
+        };
+
+        // Helper to check if a finger is bent (tip below PIP joint)
+        const isFingerBent = (tip, pip) => {
+            return tip.y > pip.y;
+        };
+
+        // Victory sign (V gesture) - index and middle fingers extended, others bent
+        const isVictorySign = (landmarks) => {
+            const lm = landmarks;
+            const indexExtended = isFingerExtended(lm[8], lm[6]);   // index finger
+            const middleExtended = isFingerExtended(lm[12], lm[10]); // middle finger
+            const ringBent = isFingerBent(lm[16], lm[14]);          // ring finger
+            const pinkyBent = isFingerBent(lm[20], lm[18]);         // pinky finger
+            const thumbBent = lm[4].x > lm[2].x;                    // thumb bent (horizontal)
+
+            return indexExtended && middleExtended && ringBent && pinkyBent && thumbBent;
+        };
+
+        // OK sign (circle gesture) - thumb and index tips close together, other fingers bent
+        const isOKSign = (landmarks) => {
+            const lm = landmarks;
+            const thumbIndexDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+            const middleBent = isFingerBent(lm[12], lm[10]);
+            const ringBent = isFingerBent(lm[16], lm[14]);
+            const pinkyBent = isFingerBent(lm[20], lm[18]);
+
+            return thumbIndexDist < 0.03 && middleBent && ringBent && pinkyBent;
+        };
+
+        // Thumbs up gesture - thumb extended upward, other fingers bent into fist
+        const isThumbsUp = (landmarks) => {
+            const lm = landmarks;
+            const thumbExtended = lm[4].y < lm[2].y; // thumb tip above MCP joint
+            const indexBent = isFingerBent(lm[8], lm[6]);
+            const middleBent = isFingerBent(lm[12], lm[10]);
+            const ringBent = isFingerBent(lm[16], lm[14]);
+            const pinkyBent = isFingerBent(lm[20], lm[18]);
+
+            return thumbExtended && indexBent && middleBent && ringBent && pinkyBent;
+        };
+
+        // Palm swing detection (quick horizontal movement)
+        // This needs to be called with historical data
+        const isPalmSwing = (currentPalmX, lastPalmX, threshold = 0.08) => {
+            if (lastPalmX === null || lastPalmX === undefined) return false;
+            const deltaX = Math.abs(currentPalmX - lastPalmX);
+            return deltaX > threshold;
+        };
+
+        // Gesture debouncing - prevent rapid repeated triggers
+        const canTriggerGesture = (gestureName, cooldownMs = 1000) => {
+            const now = Date.now();
+            if (now - STATE.lastGestureTime < cooldownMs) {
+                return false;
+            }
+            // Check if same gesture was just triggered
+            if (STATE.gesture === gestureName && now - STATE.gestureData.lastTriggerTime < cooldownMs) {
+                return false;
+            }
+            return true;
+        };
+
+        // Update gesture trigger time
+        const updateGestureTriggerTime = (gestureName) => {
+            const now = Date.now();
+            STATE.lastGestureTime = now;
+            STATE.gestureData.lastTriggerTime = now;
+            STATE.gestureData.lastGesture = gestureName;
+        };
+
+        // --- Main Application Class ---
+        class App {
+            constructor() {
+                this.container = document.body;
+                this.particles = [];
+                this.photos = [];
+                this.time = 0;
+
+                // Gesture tracking variables
+                this.lastPalmX = null;
+                this.lastPalmY = null;
+                this.lastGestureDetectionTime = 0;
+                this.gestureHistory = [];
+                this.currentLightColor = 0xd4af37; // Default gold color
+
+                this.initScene();
+                this.initPostProcessing();
+                this.initContent();
+                this.initEvents();
+                this.initCV();
+                
+                this.animate = this.animate.bind(this);
+                requestAnimationFrame(this.animate);
+            }
+
+            initScene() {
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.toneMapping = THREE.ReinhardToneMapping;
+                this.renderer.toneMappingExposure = 2.2;
+                this.container.appendChild(this.renderer.domElement);
+
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(0, 2, 50);
+
+                // Scene
+                this.scene = new THREE.Scene();
+                this.mainGroup = new THREE.Group();
+                this.scene.add(this.mainGroup);
+
+                // Environment
+                const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+                this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+                // Lighting
+                const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambient);
+
+                const pLight = new THREE.PointLight(0xffaa00, 2, 50);
+                pLight.position.set(0, 0, 0);
+                this.mainGroup.add(pLight);
+
+                const spotGold = new THREE.SpotLight(0xd4af37, 1200);
+                spotGold.position.set(30, 40, 40);
+                spotGold.angle = 0.5;
+                spotGold.penumbra = 0.5;
+                this.scene.add(spotGold);
+
+                const spotBlue = new THREE.SpotLight(0x4444ff, 600);
+                spotBlue.position.set(-30, 20, -30);
+                spotBlue.angle = 0.6;
+                this.scene.add(spotBlue);
+            }
+
+            initPostProcessing() {
+                this.composer = new EffectComposer(this.renderer);
+                const renderPass = new RenderPass(this.scene, this.camera);
+                this.composer.addPass(renderPass);
+
+                const bloomPass = new UnrealBloomPass(
+                    new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    0.45, // strength
+                    0.4,  // radius
+                    0.7   // threshold
+                );
+                this.composer.addPass(bloomPass);
+            }
+
+            initContent() {
+                console.log('initContent called');
+                // Materials
+                const matGold = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.2, metalness: 0.9 });
+                const matGreen = new THREE.MeshStandardMaterial({ color: 0x004411, roughness: 0.8 });
+                const matRed = new THREE.MeshPhysicalMaterial({ color: 0xaa0000, roughness: 0.2, clearcoat: 1.0 });
+                const matCane = new THREE.MeshStandardMaterial({ map: createCandyCaneTexture(), roughness: 0.3 });
+
+                // Geometries
+                const geoBox = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const geoSphere = new THREE.SphereGeometry(0.3, 16, 16);
+                
+                // Candy Cane Geometry
+                const path = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0, -0.5, 0),
+                    new THREE.Vector3(0, 0.5, 0),
+                    new THREE.Vector3(0.3, 0.8, 0),
+                    new THREE.Vector3(0.5, 0.5, 0)
+                ]);
+                const geoCane = new THREE.TubeGeometry(path, 20, 0.08, 8, false);
+
+                // Helper to create particle data
+                const createParticle = (mesh, type = 'DECOR') => {
+                    const t = Math.random(); // 0 to 1 position on tree
+                    const maxRadius = 12;
+                    const angle = t * 50 * Math.PI;
+                    const radius = maxRadius * (1 - t);
+                    
+                    const treePos = new THREE.Vector3(
+                        Math.cos(angle) * radius,
+                        (t * 30) - 15,
+                        Math.sin(angle) * radius
+                    );
+
+                    // Scatter pos
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = 2 * Math.PI * u;
+                    const phi = Math.acos(2 * v - 1);
+                    const r = 8 + Math.random() * 12; // 8 to 20
+                    const scatterPos = new THREE.Vector3(
+                        r * Math.sin(phi) * Math.cos(theta),
+                        r * Math.sin(phi) * Math.sin(theta),
+                        r * Math.cos(phi)
+                    );
+
+                    mesh.position.copy(treePos);
+                    mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                    
+                    this.mainGroup.add(mesh);
+                    
+                    this.particles.push({
+                        mesh,
+                        treePos,
+                        scatterPos,
+                        velocity: new THREE.Vector3((Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05),
+                        type
+                    });
+                };
+
+                // Generate Main Particles (~1500)
+                for(let i=0; i<1500; i++) {
+                    let mesh;
+                    const r = Math.random();
+                    if(r < 0.6) mesh = new THREE.Mesh(geoBox, Math.random()>0.5 ? matGold : matGreen);
+                    else if(r < 0.9) mesh = new THREE.Mesh(geoSphere, Math.random()>0.5 ? matGold : matRed);
+                    else mesh = new THREE.Mesh(geoCane, matCane);
+                    
+                    createParticle(mesh);
+                }
+
+                // Dust Particles (~2500)
+                const dustGeo = new THREE.PlaneGeometry(0.1, 0.1);
+                const dustMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                for(let i=0; i<2500; i++) {
+                    const mesh = new THREE.Mesh(dustGeo, dustMat);
+                    createParticle(mesh, 'DUST');
+                }
+
+                // Load all images from images/ folder
+                // Add default photo first
+                this.addPhotoToScene(createDefaultPhotoTexture());
+
+                const imageFiles = [
+                    './images/6bcd2e2935010a1986555feba73b6963.jpg',
+                    './images/daaa65e944a105c99845d35018793dc9.jpg',
+                    './images/IMG_0108.jpg',
+                    './images/IMG_1193.jpg',
+                    './images/IMG_1653.jpg',
+                    './images/IMG_7407.jpg',
+                    './images/IMG_8922.jpg',
+                    './images/IMG_9228.jpg',
+                    './images/IMG_9317.jpg'
+                ];
+
+                const textureLoader = new THREE.TextureLoader();
+                this.textureLoader = textureLoader; // Save for debugging
+                console.log('Starting to load images from images/ folder...');
+                imageFiles.forEach(file => {
+                    console.log('Loading image:', file);
+                    textureLoader.load(file, (texture) => {
+                        console.log('Successfully loaded:', file, texture);
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                        this.addPhotoToScene(texture);
+                    }, undefined, (error) => {
+                        console.error('Failed to load image:', file, error);
+                    });
+                });
+            }
+
+            addPhotoToScene(texture) {
+                console.log('Adding photo to scene, texture:', texture);
+                const frameGeo = new THREE.BoxGeometry(4.2, 4.2, 0.2);
+                const frameMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3 });
+                const frame = new THREE.Mesh(frameGeo, frameMat);
+
+                const photoGeo = new THREE.PlaneGeometry(3.8, 3.8);
+                const photoMat = new THREE.MeshBasicMaterial({ map: texture });
+                const photo = new THREE.Mesh(photoGeo, photoMat);
+                photo.position.z = 0.11;
+                frame.add(photo);
+
+                // Add to system
+                const t = Math.random();
+                const maxRadius = 10;
+                const angle = t * 50 * Math.PI;
+                const radius = maxRadius * (1 - t);
+                
+                const treePos = new THREE.Vector3(Math.cos(angle)*radius, (t*30)-15, Math.sin(angle)*radius);
+                frame.position.copy(treePos);
+                frame.lookAt(0, frame.position.y, 0); // Face outward initially
+
+                this.mainGroup.add(frame);
+
+                // Scatter pos
+                const scatterPos = new THREE.Vector3((Math.random()-0.5)*30, (Math.random()-0.5)*30, (Math.random()-0.5)*30);
+
+                this.particles.push({
+                    mesh: frame,
+                    treePos: treePos.clone(),
+                    scatterPos: scatterPos,
+                    velocity: new THREE.Vector3(0,0,0),
+                    type: 'PHOTO',
+                    baseScale: 1
+                });
+            }
+
+            initEvents() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                // File upload removed - images loaded from images/ folder
+
+                // Hide UI
+                window.addEventListener('keydown', (e) => {
+                    if(e.key.toLowerCase() === 'h') {
+                        document.getElementById('ui-container').classList.toggle('ui-hidden');
+                    }
+                });
+            }
+
+            async initCV() {
+                try {
+                    const vision = await FilesetResolver.forVisionTasks(
+                        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                    );
+                    
+                    this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                        baseOptions: {
+                            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                            delegate: "GPU"
+                        },
+                        runningMode: "VIDEO",
+                        numHands: 1
+                    });
+
+                    // Setup Webcam
+                    const video = document.getElementById('webcam');
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    video.addEventListener('loadeddata', () => {
+                        this.cvReady = true;
+                        // Hide loader when everything is ready
+                        document.getElementById('loader').style.opacity = 0;
+                        setTimeout(() => document.getElementById('loader').remove(), 1000);
+                        this.predictWebcam();
+                    });
+
+                } catch (e) {
+                    console.error("CV Init Failed:", e);
+                    // Hide loader anyway if CV fails
+                    document.getElementById('loader').style.opacity = 0;
+                }
+            }
+
+            async predictWebcam() {
+                const video = document.getElementById('webcam');
+                const canvas = document.getElementById('cv-canvas');
+                let lastVideoTime = -1;
+
+                const renderLoop = async () => {
+                    if (video.currentTime !== lastVideoTime) {
+                        lastVideoTime = video.currentTime;
+                        const result = this.handLandmarker.detectForVideo(video, performance.now());
+                        this.processGestures(result);
+                    }
+                    requestAnimationFrame(renderLoop);
+                };
+                renderLoop();
+            }
+
+            processGestures(result) {
+                if (!result.landmarks || result.landmarks.length === 0) return;
+
+                const lm = result.landmarks[0]; // First hand
+                const thumb = lm[4];
+                const index = lm[8];
+                const wrist = lm[0];
+                const tips = [lm[8], lm[12], lm[16], lm[20]];
+
+                // 1. Interaction Mapping (Rotation)
+                // Center of palm approx at index 9
+                const palm = lm[9];
+                // Map 0..1 to -PI..PI (inverted for mirror effect)
+                STATE.handRotation.y = (palm.x - 0.5) * 2; 
+                STATE.handRotation.x = (palm.y - 0.5) * 2;
+
+                // 2. Gesture Recognition
+                // Pinch: Thumb to Index
+                const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+                
+                // Average distance from tips to wrist
+                let avgDist = 0;
+                tips.forEach(t => {
+                    avgDist += Math.hypot(t.x - wrist.x, t.y - wrist.y);
+                });
+                avgDist /= 4;
+
+                if (pinchDist < 0.05) {
+                    STATE.mode = 'FOCUS';
+                    // If no target selected, pick a random photo
+                    if (!STATE.focusTarget) {
+                        const photos = this.particles.filter(p => p.type === 'PHOTO');
+                        if (photos.length > 0) {
+                            STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)];
+                        }
+                    }
+                } else if (avgDist < 0.25) {
+                    STATE.mode = 'TREE';
+                    STATE.focusTarget = null;
+                } else if (avgDist > 0.4) {
+                    STATE.mode = 'SCATTER';
+                    STATE.focusTarget = null;
+                }
+
+                // 3. Advanced Gesture Detection (New gestures)
+                // Reset gesture state
+                STATE.gesture = 'NONE';
+
+                // Update palm position history for swing detection
+                if (this.lastPalmX === null) {
+                    this.lastPalmX = palm.x;
+                    this.lastPalmY = palm.y;
+                }
+
+                // Check for victory sign (V gesture)
+                if (isVictorySign(lm) && canTriggerGesture('VICTORY', 1500)) {
+                    STATE.gesture = 'VICTORY';
+                    this.onVictoryGesture();
+                    updateGestureTriggerTime('VICTORY');
+                }
+                // Check for OK sign (circle gesture)
+                else if (isOKSign(lm) && canTriggerGesture('OK', 1000)) {
+                    STATE.gesture = 'OK';
+                    this.onOKGesture();
+                    updateGestureTriggerTime('OK');
+                }
+                // Check for thumbs up gesture
+                else if (isThumbsUp(lm) && canTriggerGesture('THUMBS_UP', 1500)) {
+                    STATE.gesture = 'THUMBS_UP';
+                    this.onThumbsUpGesture();
+                    updateGestureTriggerTime('THUMBS_UP');
+                }
+                // Check for palm swing (quick horizontal movement)
+                else if (isPalmSwing(palm.x, this.lastPalmX, 0.08) && avgDist > 0.3 && canTriggerGesture('SWING', 800)) {
+                    STATE.gesture = 'SWING';
+                    this.onPalmSwingGesture();
+                    updateGestureTriggerTime('SWING');
+                }
+
+                // Update palm history for next frame
+                this.lastPalmX = palm.x;
+                this.lastPalmY = palm.y;
+
+                // Keep gesture history for debugging
+                if (STATE.gesture !== 'NONE') {
+                    this.gestureHistory.push({
+                        gesture: STATE.gesture,
+                        time: Date.now(),
+                        palmX: palm.x,
+                        palmY: palm.y
+                    });
+                    // Keep only last 10 gestures
+                    if (this.gestureHistory.length > 10) {
+                        this.gestureHistory.shift();
+                    }
+                }
+            }
+
+            // --- New Gesture Handlers ---
+            onVictoryGesture() {
+                console.log('Victory gesture detected! Changing light colors...');
+
+                // Cycle through light colors
+                const lightColors = [
+                    0xd4af37, // Gold (default)
+                    0xff4444, // Red
+                    0x4444ff, // Blue
+                    0x44ff44, // Green
+                    0xff44ff, // Pink
+                    0xffff44, // Yellow
+                    0x44ffff  // Cyan
+                ];
+
+                STATE.lightColorIndex = (STATE.lightColorIndex + 1) % lightColors.length;
+                const newColor = lightColors[STATE.lightColorIndex];
+                this.currentLightColor = newColor;
+
+                // Update existing lights in the scene
+                this.scene.traverse((object) => {
+                    if (object.isLight) {
+                        if (object.isPointLight || object.isSpotLight || object.isDirectionalLight) {
+                            object.color.setHex(newColor);
+                        }
+                    }
+                });
+
+                // Update STATE
+                STATE.effectEnabled = true;
+                console.log(`Light color changed to: #${newColor.toString(16)}`);
+            }
+
+            onOKGesture() {
+                console.log('OK gesture detected! Toggling photo frame glow...');
+
+                // Toggle frame glow effect
+                STATE.effectEnabled = !STATE.effectEnabled;
+
+                // Apply glow effect to photo frames
+                this.particles.forEach(particle => {
+                    if (particle.type === 'PHOTO' && particle.mesh.material) {
+                        if (STATE.effectEnabled) {
+                            // Add emissive glow effect
+                            particle.mesh.material.emissive = new THREE.Color(0xd4af37);
+                            particle.mesh.material.emissiveIntensity = 0.3;
+                        } else {
+                            // Remove glow effect
+                            particle.mesh.material.emissive = new THREE.Color(0x000000);
+                            particle.mesh.material.emissiveIntensity = 0;
+                        }
+                    }
+                });
+
+                console.log(`Photo frame glow: ${STATE.effectEnabled ? 'ON' : 'OFF'}`);
+            }
+
+            onThumbsUpGesture() {
+                console.log('Thumbs up gesture detected! Changing particle effects...');
+
+                // Toggle between different particle types
+                const particleTypes = ['default', 'sparkle', 'snow'];
+                const currentIndex = particleTypes.indexOf(STATE.particleType);
+                const nextIndex = (currentIndex + 1) % particleTypes.length;
+                STATE.particleType = particleTypes[nextIndex];
+
+                console.log(`Particle type changed to: ${STATE.particleType}`);
+
+                // In a full implementation, you would change particle appearance here
+                // For now, just change the color of some particles as an example
+                if (this.particles.length > 0) {
+                    // Change color of first 100 particles as a visual feedback
+                    for (let i = 0; i < Math.min(100, this.particles.length); i++) {
+                        const particle = this.particles[i];
+                        if (particle.mesh.material && particle.mesh.material.color) {
+                            const colors = [0xffffff, 0xffaa00, 0x00aaff, 0xaaff00];
+                            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                            particle.mesh.material.color.setHex(randomColor);
+                        }
+                    }
+                }
+            }
+
+            onPalmSwingGesture() {
+                console.log('Palm swing gesture detected! Resetting scene...');
+
+                // Reset camera position
+                this.camera.position.set(0, 2, 50);
+
+                // Reset rotation
+                this.mainGroup.rotation.set(0, 0, 0);
+
+                // Reset STATE modes
+                STATE.mode = 'TREE';
+                STATE.focusTarget = null;
+                STATE.handRotation = { x: 0, y: 0 };
+
+                // Reset lights to default color
+                this.scene.traverse((object) => {
+                    if (object.isLight) {
+                        if (object.isPointLight || object.isSpotLight || object.isDirectionalLight) {
+                            object.color.setHex(0xd4af37); // Default gold
+                        }
+                    }
+                });
+
+                this.currentLightColor = 0xd4af37;
+                STATE.lightColorIndex = 0;
+
+                console.log('Scene reset to default state');
+            }
+
+            animate() {
+                this.time += 0.01;
+
+                // Smooth Rotation based on Hand or Auto
+                const targetRotY = STATE.handRotation.y;
+                const targetRotX = STATE.handRotation.x * 0.5;
+                
+                // If CV is active, follow hand, else slow spin
+                if(this.cvReady) {
+                    this.mainGroup.rotation.y += (targetRotY - this.mainGroup.rotation.y) * 0.1;
+                    this.mainGroup.rotation.x += (targetRotX - this.mainGroup.rotation.x) * 0.1;
+                } else {
+                    this.mainGroup.rotation.y += 0.002;
+                }
+
+                // Update Particles
+                this.particles.forEach(p => {
+                    let targetPos = new THREE.Vector3();
+                    let targetScale = p.baseScale || 1;
+                    let targetQuat = new THREE.Quaternion();
+
+                    if (STATE.mode === 'TREE') {
+                        targetPos.copy(p.treePos);
+                        // Look at center (simple approximation for tree orientation)
+                        const lookDummy = new THREE.Object3D();
+                        lookDummy.position.copy(p.treePos);
+                        lookDummy.lookAt(0, p.treePos.y, 0);
+                        targetQuat.copy(lookDummy.quaternion);
+
+                    } else if (STATE.mode === 'SCATTER') {
+                        targetPos.copy(p.scatterPos);
+                        // Rotate based on velocity
+                        p.mesh.rotation.x += p.velocity.x;
+                        p.mesh.rotation.y += p.velocity.y;
+                        targetQuat.copy(p.mesh.quaternion); // Keep rotating
+
+                    } else if (STATE.mode === 'FOCUS') {
+                        if (p === STATE.focusTarget) {
+                            // Move to front of camera
+                            // Camera is at (0, 2, 50), place at (0, 2, 35)
+                            // Convert world to local space relative to mainGroup rotation is complex,
+                            // Simplification: Inverse transform or just move group.
+                            // Better: Move mesh to local coordinate that matches world (0,2,35)
+                            
+                            // Since mainGroup rotates, a static local pos rotates with it.
+                            // To lock to camera, we'd need to detach. 
+                            // For this demo, we project to a position "in front" relative to the group.
+                            targetPos.set(0, 2, 20); // Closer to center
+                            targetScale = 4.5;
+                            targetQuat.setFromEuler(new THREE.Euler(0, 0, 0));
+                        } else {
+                            // Background scatter
+                            targetPos.copy(p.scatterPos).multiplyScalar(1.5);
+                        }
+                    }
+
+                    // Lerp Position
+                    p.mesh.position.lerp(targetPos, 0.05);
+                    
+                    // Lerp Scale
+                    const s = p.mesh.scale.x + (targetScale - p.mesh.scale.x) * 0.05;
+                    p.mesh.scale.set(s, s, s);
+
+                    // Handle Rotation (Only Lerp if not scattering freely)
+                    if (STATE.mode !== 'SCATTER') {
+                        p.mesh.quaternion.slerp(targetQuat, 0.05);
+                    }
+                });
+
+                this.composer.render();
+                this.updateGestureDisplay();
+                requestAnimationFrame(this.animate);
+            }
+
+            updateGestureDisplay() {
+                const gestureElement = document.getElementById('current-gesture');
+                const effectElement = document.getElementById('gesture-effect');
+
+                if (!gestureElement || !effectElement) return;
+
+                // Map gesture codes to display names
+                const gestureNames = {
+                    'NONE': 'No gesture detected',
+                    'VICTORY': '✌️ Victory Sign (V gesture)',
+                    'OK': '👌 OK Sign (Circle gesture)',
+                    'THUMBS_UP': '👍 Thumbs Up',
+                    'SWING': '🔄 Palm Swing'
+                };
+
+                // Map gesture to effect description
+                const effectDescriptions = {
+                    'NONE': 'Use gestures to control the scene',
+                    'VICTORY': 'Changes light colors',
+                    'OK': 'Toggles photo frame glow',
+                    'THUMBS_UP': 'Changes particle effects',
+                    'SWING': 'Resets scene to default'
+                };
+
+                const gestureName = gestureNames[STATE.gesture] || STATE.gesture;
+                const effectDesc = effectDescriptions[STATE.gesture] || '-';
+
+                gestureElement.textContent = gestureName;
+                effectElement.textContent = effectDesc;
+
+                // Add subtle visual feedback when gesture is active
+                const gestureStatus = document.getElementById('gesture-status');
+                if (gestureStatus) {
+                    if (STATE.gesture !== 'NONE') {
+                        gestureStatus.style.borderColor = '#ffffff';
+                        gestureStatus.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.5)';
+                    } else {
+                        gestureStatus.style.borderColor = 'var(--gold)';
+                        gestureStatus.style.boxShadow = 'none';
+                    }
+                }
+            }
+        }
+
+        // Initialize
+        window.__appInstance = new App();
+
+    </script>
+
+    <!-- Christmas Music -->
+    <audio id="bg-music" loop preload="auto">
+        <source src="trackintime.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        // Auto-play background music with fallback for browser autoplay policies
+        const bgMusic = document.getElementById('bg-music');
+        bgMusic.volume = 0.5; // Set volume to 50%
+
+        function playBackgroundMusic() {
+            const playPromise = bgMusic.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log('Autoplay prevented. Waiting for user interaction.');
+                    // Try again on first user interaction
+                    const playOnInteraction = () => {
+                        bgMusic.play();
+                        document.removeEventListener('click', playOnInteraction);
+                        document.removeEventListener('keydown', playOnInteraction);
+                        document.removeEventListener('touchstart', playOnInteraction);
+                    };
+                    document.addEventListener('click', playOnInteraction);
+                    document.addEventListener('keydown', playOnInteraction);
+                    document.addEventListener('touchstart', playOnInteraction);
+                });
+            }
+        }
+
+        // Start playing when the page is fully loaded
+        if (document.readyState === 'complete') {
+            playBackgroundMusic();
+        } else {
+            window.addEventListener('load', playBackgroundMusic);
+        }
+    </script>
+
+    <!-- Debug helper -->
+    <script>
+        // Debug function to manually load images if automatic loading fails
+        window.debugLoadImages = function() {
+            console.log('Manual image loading triggered...');
+            const imageFiles = [
+                './images/6bcd2e2935010a1986555feba73b6963.jpg',
+                './images/daaa65e944a105c99845d35018793dc9.jpg',
+                './images/IMG_0108.jpg',
+                './images/IMG_1193.jpg',
+                './images/IMG_1653.jpg',
+                './images/IMG_7407.jpg',
+                './images/IMG_8922.jpg',
+                './images/IMG_9228.jpg',
+                './images/IMG_9317.jpg'
+            ];
+
+            const app = window.__appInstance; // App instance may not be exposed
+            if (app && app.addPhotoToScene) {
+                const textureLoader = app.textureLoader || (window.THREE && new window.THREE.TextureLoader());
+                if (!textureLoader) {
+                    console.error('TextureLoader not available');
+                    return;
+                }
+                imageFiles.forEach(file => {
+                    textureLoader.load(file, (texture) => {
+                        if (window.THREE && window.THREE.SRGBColorSpace) {
+                            texture.colorSpace = window.THREE.SRGBColorSpace;
+                        }
+                        app.addPhotoToScene(texture);
+                        console.log('Manually loaded:', file);
+                    }, undefined, (error) => {
+                        console.error('Failed to load image:', file, error);
+                    });
+                });
+            } else {
+                console.error('App instance not found. Page may not be fully loaded.');
+            }
+        };
+
+        // Make App instance globally accessible (for debugging only)
+        // This needs to be set from within the main module
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait a bit for App to initialize
+            setTimeout(() => {
+                if (window.__appInstance) return;
+                // Try to find App instance (hack for debugging)
+                console.log('For debugging: Open browser console and check if images are loading.');
+                console.log('If images fail to load, try running:');
+                console.log('1. Open Developer Tools (F12)');
+                console.log('2. Go to Console tab');
+                console.log('3. Look for error messages');
+                console.log('4. Ensure you are accessing via HTTP server (not file://)');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
