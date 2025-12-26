@@ -8,7 +8,11 @@
     "dev": "npx serve -p 3000",
     "local": "npx http-server -p 8080 -o",
     "open": "open index.html",
-    "test": "node server.js"
+    "test": "node server.js",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && mkdir -p dist && cp index.html trackintime.mp3 dist/ && cp -r images dist/",
+    "predeploy": "npm run build",
+    "serve:dist": "npx serve dist -p 3000"
   },
   "keywords": [
     "three.js",
